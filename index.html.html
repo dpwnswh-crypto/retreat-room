@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수련회 방 배정 시스템</title>
+<style>
+  :root{
+    --bg:#0e1726; --panel:#16223a; --panel2:#1d2c47; --line:#2c3e5e;
+    --ink:#e8eef7; --muted:#93a4be; --accent:#ffb627; --accent2:#4ea1ff;
+    --good:#3ddc97; --warn:#ff6b6b; --soft:#9d7bff; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:radial-gradient(1200px 700px at 80% -10%,#1c2d4d 0%,var(--bg) 55%);
+    color:var(--ink); font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    line-height:1.55; padding:24px 16px 80px;}
+  h1{font-size:25px; margin:0 0 4px; letter-spacing:-.5px} h1 span{color:var(--accent)}
+  .sub{color:var(--muted); margin:0 0 16px; font-size:13.5px}
+  .wrap{max-width:1180px; margin:0 auto}
+  .modebar{display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; align-items:center}
+  .modebar button{padding:10px 18px; border-radius:10px; border:1px solid var(--line);
+    background:var(--panel); color:var(--muted); font-size:14px; cursor:pointer}
+  .modebar button.on{background:var(--accent); color:#1a1300; border-color:var(--accent); font-weight:700}
+  .syncbox{margin-left:auto; display:flex; align-items:center; gap:8px; font-size:11.5px}
+  .pill{font-family:'SF Mono',Menlo,monospace; background:#0f1a2e; padding:4px 10px; border-radius:8px; border:1px solid var(--line); color:var(--ink)}
+  .sync{padding:4px 10px; border-radius:10px; font-weight:600}
+  .sync.on{background:#1f3a2c; color:var(--good)}
+  .sync.off{background:#3a2828; color:var(--warn)}
+  .card{background:linear-gradient(180deg,var(--panel),#13203699);
+    border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-bottom:18px}
+  .card h2{font-size:14px; margin:0 0 14px; color:var(--accent2); letter-spacing:.4px; text-transform:uppercase}
+  .setup{background:linear-gradient(180deg,#3a2818,#231406); border-color:#5e4520}
+  .setup h2{color:var(--accent)} .setup code{background:#0f1a2e; padding:2px 6px; border-radius:4px; font-size:12px}
+  .setup pre{background:#0f1a2e; padding:10px 12px; border-radius:8px; font-size:11.5px; overflow-x:auto; color:#cdd9ec}
+  label{font-size:12.5px; color:var(--muted); display:block; margin:10px 0 4px}
+  .hint{font-size:11.5px; color:#6f82a0; margin:-2px 0 4px}
+  input,select{width:100%; background:#0f1a2e; border:1px solid var(--line); color:var(--ink);
+    padding:10px 11px; border-radius:9px; font-size:14px}
+  .row{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+  .row3{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+  @media(max-width:620px){.row,.row3{grid-template-columns:1fr}}
+  button{cursor:pointer; border:none; border-radius:9px; font-weight:600; font-size:14px}
+  .btn{background:var(--accent); color:#1a1300; padding:11px 16px}
+  .btn:hover{filter:brightness(1.08)}
+  .btn2{background:var(--panel2); color:var(--ink); border:1px solid var(--line); padding:9px 13px}
+  .btn-big{background:linear-gradient(90deg,var(--accent),#ff8a00); color:#1a1300; padding:15px;
+    width:100%; font-size:16px; margin-top:16px}
+  .btn-run{background:linear-gradient(90deg,var(--accent2),var(--good)); color:#05221a; padding:14px;
+    width:100%; font-size:15px}
+  .grid{display:grid; grid-template-columns:1.1fr .9fr; gap:18px}
+  @media(max-width:880px){.grid{grid-template-columns:1fr}}
+  table{width:100%; border-collapse:collapse; font-size:12.5px; margin-top:6px}
+  th,td{padding:7px 8px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap}
+  th{color:var(--muted); font-weight:600; font-size:11px}
+  td select,td input{padding:5px 6px; font-size:12px; min-width:60px}
+  td .x{color:var(--warn); cursor:pointer; font-weight:700}
+  .tag{display:inline-block; font-size:11px; padding:2px 8px; border-radius:20px; background:#0f1a2e;
+    border:1px solid var(--line); color:var(--muted); margin:2px 3px 0 0}
+  .tag.g{color:var(--good);border-color:#1f5e44}.tag.w{color:var(--warn);border-color:#5e1f1f}
+  .tag.s{color:var(--soft);border-color:#3d2f5e}.tag.a{color:var(--accent2);border-color:#1f3e5e}
+  .roster{display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px}
+  .room{background:linear-gradient(180deg,var(--panel2),#152b47); border:1px solid var(--line);
+    border-radius:12px; padding:14px; position:relative}
+  .room.near{border-color:var(--accent); box-shadow:0 0 0 1px #ffb62733}
+  .room.over{border-color:var(--warn); box-shadow:0 0 0 1px #ff6b6b55}
+  .room h3{margin:0 0 2px; font-size:16px}.room .cap{font-size:11px; color:var(--muted)}
+  .room ul{list-style:none; padding:0; margin:10px 0 0}
+  .room li{padding:6px 4px; border-bottom:1px dashed #2c3e5e55; font-size:13px;
+    display:flex; justify-content:space-between; align-items:center; cursor:pointer; border-radius:6px}
+  .room li:hover{background:#0f1a2e}
+  .room li.violate{background:#2a131355}
+  .score{font-size:42px; font-weight:800; color:var(--accent); line-height:1}
+  .bar{height:8px; background:#0f1a2e; border-radius:8px; overflow:hidden; margin:4px 0 2px}
+  .bar i{display:block; height:100%; background:linear-gradient(90deg,var(--accent2),var(--good))}
+  .metric{margin:9px 0}.metric .lab{display:flex; justify-content:space-between; font-size:12px; color:var(--muted)}
+  .warnbox{background:#2a131355; border:1px solid #5e1f1f; border-radius:10px; padding:10px 12px; font-size:12.5px; margin:6px 0}
+  .memo{background:#13233a; border-left:3px solid var(--accent2); border-radius:8px; padding:10px 12px; font-size:12.5px; margin:6px 0; color:#cdd9ec}
+  .muted{color:var(--muted); font-size:12px}
+  .empty{color:var(--muted); text-align:center; padding:40px; font-size:14px}
+  .done{text-align:center; padding:50px 20px}
+  .done .big{font-size:60px}.done h2{color:var(--good); font-size:22px; margin:10px 0}
+  .modal-bg{position:fixed;inset:0;background:#000a; display:none; align-items:center; justify-content:center; z-index:50; padding:20px}
+  .modal-bg.on{display:flex}
+  .modal{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; max-width:420px; width:100%}
+  .modal h3{margin:0 0 4px; font-size:17px}
+  .modal .who{color:var(--muted); font-size:12.5px; margin-bottom:14px}
+  .roomopt{display:flex; justify-content:space-between; align-items:center; padding:10px 12px;
+    background:#0f1a2e; border:1px solid var(--line); border-radius:10px; margin-bottom:8px; cursor:pointer; font-size:13px}
+  .roomopt:hover{border-color:var(--accent2)}
+  .roomopt.cur{opacity:.4; cursor:default}
+  .roomopt .badge{font-size:11px; color:var(--warn)}
+  .moveinfo{font-size:11.5px; color:#6f82a0; margin-top:10px}
+  .editbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px;
+    padding:10px 12px; background:#13233a; border:1px solid var(--line); border-radius:10px}
+  .editbar .lab{color:var(--muted); font-size:12px}
+  details summary{cursor:pointer; color:var(--accent2); font-size:13px}
+  details ol{font-size:13px; line-height:1.8; margin:10px 0 0; padding-left:22px}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <h1>수련회 <span>방 배정</span> 시스템</h1>
+  <p class="sub">학생은 자기 정보를 입력해 제출하고, 교사는 명단·배정을 자유롭게 수정합니다.</p>
+
+  <div id="setupBanner"></div>
+
+  <div class="modebar">
+    <button id="mbStudent" class="on" onclick="setMode('student')">🙋 학생 입력</button>
+    <button id="mbTeacher" onclick="setMode('teacher')">🔒 교사 모드</button>
+    <span class="syncbox">
+      <span class="muted">캠프 코드</span>
+      <span class="pill" id="campLbl">-</span>
+      <span class="sync off" id="syncStatus">⏸ 로컬</span>
+    </span>
+  </div>
+
+  <!-- 학생 모드 -->
+  <div id="studentView">
+    <div class="card" id="studentForm">
+      <h2>나의 정보 입력</h2>
+      <div class="row">
+        <div><label>이름</label><input id="s_name" placeholder="이름을 적어주세요"></div>
+        <div><label>성별</label><select id="s_gender"><option value="M">남</option><option value="F">여</option></select></div>
+      </div>
+      <div class="row">
+        <div><label>학년</label><select id="s_grade"><option>중1</option><option>중2</option><option>중3</option><option>고1</option><option>고2</option><option>고3</option></select></div>
+        <div><label>이번이 처음 온 거예요? (새친구)</label><select id="s_new"><option value="no">아니요</option><option value="yes">네, 처음이에요</option></select></div>
+      </div>
+      <label>나는 어떤 편인가요?</label>
+      <div class="row3">
+        <select id="s_temp"><option value="active">활발한 편</option><option value="normal">보통</option><option value="quiet">조용한 편</option></select>
+        <select id="s_lead"><option value="low">앞에 잘 안 나섬</option><option value="mid">보통</option><option value="high">잘 이끄는 편</option></select>
+        <select id="s_mis"><option value="low">얌전한 편</option><option value="mid">보통</option><option value="high">장난 좋아함</option></select>
+      </div>
+      <div class="row">
+        <div><label>같은 방이면 좋은 친구 (이름, 쉼표로 구분)</label><input id="s_friends" placeholder="예) 김철수, 이영희"></div>
+        <div><label>같은 방이 불편한 친구 (있으면)</label><input id="s_avoid" placeholder="없으면 비워두세요"></div>
+      </div>
+      <button class="btn-big" onclick="submitStudent()">제출하기</button>
+      <p class="muted" style="text-align:center;margin-top:10px">제출하면 결과는 선생님만 볼 수 있어요 🙂</p>
+    </div>
+    <div class="card" id="studentDone" style="display:none">
+      <div class="done">
+        <div class="big">🎉</div><h2>제출 완료!</h2>
+        <p class="muted">정보가 잘 전달됐어요. 방 배정은 선생님이 정리해서 알려줄 거예요.<br>수고했어요!</p>
+        <button class="btn2" style="margin-top:16px" onclick="resetStudentForm()">다른 친구가 이어서 입력하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 교사 모드 -->
+  <div id="teacherView" style="display:none">
+    <div class="card" id="teacherLogin">
+      <h2>교사 로그인</h2>
+      <p class="muted">교사용 비밀번호를 입력하세요. (이 기기에서 처음 입력 시 그 비밀번호로 설정됩니다)</p>
+      <div class="row">
+        <div><label>비밀번호</label><input id="t_pw" type="password" placeholder="비밀번호"></div>
+        <div style="display:flex;align-items:flex-end"><button class="btn" onclick="teacherLogin()">들어가기</button></div>
+      </div>
+    </div>
+
+    <div id="teacherPanel" style="display:none">
+      <div class="card">
+        <h2>① 캠프 코드 · 학생 링크</h2>
+        <p class="muted">학생들에게 보낼 링크입니다. 같은 코드로 접속해야 데이터가 모입니다.</p>
+        <div class="row">
+          <div><label>캠프 코드</label><input id="campInput" placeholder="예: 2026summer"></div>
+          <div style="display:flex;align-items:flex-end;gap:8px">
+            <button class="btn" onclick="changeCamp()">코드 변경</button>
+            <button class="btn2" onclick="copyLink()">📋 학생 링크 복사</button>
+          </div>
+        </div>
+        <p class="hint" id="linkPreview"></p>
+      </div>
+
+      <div class="card">
+        <h2>② 제출된 학생 명단 <span class="muted" id="countLbl"></span></h2>
+        <p class="muted">학생이 입력한 내용입니다. 어떤 칸이든 직접 고칠 수 있습니다.</p>
+        <div style="overflow-x:auto">
+          <table id="ttable"><thead><tr>
+            <th>이름</th><th>성별</th><th>학년</th><th>성향</th><th>리더십</th><th>장난기</th>
+            <th>특별관리</th><th>새친구</th><th>친한친구</th><th>피할친구</th><th></th>
+          </tr></thead><tbody></tbody></table>
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn2" onclick="addBlankStudent()">+ 학생 추가</button>
+          <button class="btn2" onclick="loadSample()">예시 데이터</button>
+          <button class="btn2" onclick="clearAll()" style="color:var(--warn)">전체 비우기</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>③ 방 설정</h2>
+        <p class="hint">💡 "교사방 근처"란 야간에 선생님이 빨리 갈 수 있는 방입니다. 특별관리 학생을 우선 배치합니다.</p>
+        <div id="roomTags" style="margin-bottom:10px"></div>
+        <div class="row3">
+          <div><label>방 이름</label><input id="r_name" placeholder="1호실"></div>
+          <div><label>정원(명)</label><input id="r_cap" type="number" value="4" min="1"></div>
+          <div><label>성별</label><select id="r_gender"><option value="M">남자방</option><option value="F">여자방</option></select></div>
+        </div>
+        <label>이 방은 교사방 근처인가요?</label>
+        <div class="row">
+          <select id="r_near"><option value="no">아니요</option><option value="yes">네</option></select>
+          <button class="btn" onclick="addRoom()">+ 방 추가</button>
+        </div>
+        <button class="btn-run" style="margin-top:16px" onclick="run()">🎯 최적 배정안 추천받기</button>
+      </div>
+
+      <div id="result"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="moveModal" onclick="if(event.target===this)closeMove()">
+  <div class="modal">
+    <h3 id="moveTitle">학생 이동</h3>
+    <div class="who" id="moveWho"></div>
+    <div id="moveOpts"></div>
+    <div class="moveinfo">⚠ 빨간 표시는 필수조건 위반입니다(성별·정원·피할친구). 그래도 교사 판단으로 이동할 수 있습니다.</div>
+    <button class="btn2" style="margin-top:10px;width:100%" onclick="closeMove()">취소</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   ▼▼▼ 여기에 본인 Firebase 설정을 붙여넣으세요 ▼▼▼
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyDnhhQaiRZW6uVMSHorx6hhKPhrbB8gbIQ",
+  authDomain: "teen-ager-retreat-automation.firebaseapp.com",
+  databaseURL: "https://teen-ager-retreat-automation-default-rtdb.firebaseio.com",
+  projectId: "teen-ager-retreat-automation",
+  storageBucket: "teen-ager-retreat-automation.firebasestorage.app",
+  messagingSenderId: "1006407862885",
+  appId: "1:1006407862885:web:a879955381d136b5b6148c"
+};
+/* ============================================================ */
+
+const useFirebase = firebaseConfig.apiKey && firebaseConfig.apiKey!=='PASTE_HERE';
+let db=null;
+if(useFirebase){
+  try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }
+  catch(e){ console.error('Firebase init failed',e); }
+}
+
+/* ===== 캠프 코드 ===== */
+const urlParams=new URLSearchParams(location.search);
+let campId=urlParams.get('camp')||localStorage.getItem('kc_camp')||'retreat-default';
+try{localStorage.setItem('kc_camp',campId);}catch(e){}
+document.getElementById('campLbl').textContent=campId;
+document.getElementById('syncStatus').className='sync '+(useFirebase?'on':'off');
+document.getElementById('syncStatus').textContent=useFirebase?'● 실시간 동기화':'⏸ 로컬 저장';
+
+/* ===== 설정 안내 배너 ===== */
+if(!useFirebase){
+  document.getElementById('setupBanner').innerHTML=`
+    <div class="card setup">
+      <h2>⚠️ 현재 로컬 모드 — 링크 공유가 되지 않습니다</h2>
+      <p style="margin:6px 0;font-size:13.5px">Firebase 설정을 추가하면 학생들이 각자 휴대폰에서 입력한 내용이 교사 화면에 <b>실시간으로 모입니다</b>.</p>
+      <details><summary>▶ Firebase 설정 5단계 (한 번만 하면 됨)</summary>
+      <ol>
+        <li>console.firebase.google.com 에서 새 프로젝트 만들기</li>
+        <li>좌측 메뉴 "Realtime Database" → 데이터베이스 만들기 → 위치 선택 → <b>테스트 모드로 시작</b></li>
+        <li>프로젝트 설정(⚙️) → "내 앱" 영역 → 웹 앱 추가 → 설정 객체 복사</li>
+        <li>이 HTML 파일을 텍스트 편집기로 열어 <code>firebaseConfig</code> 부분을 복사한 값으로 교체</li>
+        <li>GitHub Pages나 Firebase Hosting에 업로드 → URL을 학생들에게 공유</li>
+      </ol>
+      <p class="muted" style="margin-top:12px">💡 Realtime Database 보안 규칙(테스트용, 캠프 끝나면 제한):</p>
+      <pre>{"rules": {".read": true, ".write": true}}</pre>
+      <p class="muted" style="margin-top:8px">캠프 코드를 길고 추측 어렵게 정하면(예: <code>summer-2026-x7k9</code>) URL을 모르는 사람은 접근할 수 없으니 비교적 안전합니다.</p>
+      </details>
+    </div>`;
+}
+
+/* ===== 데이터 ===== */
+const PWKEY='kc_teacher_pw';
+const KEY_S='kc_v4_students',KEY_R='kc_v4_rooms',KEY_A='kc_v4_assignment';
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+
+let students=[], rooms=[], assignment=null, originalAssignment=null;
+
+function newId(p){return p+'_'+Date.now()+'_'+Math.floor(Math.random()*1e6);}
+
+function saveStudents(){
+  if(useFirebase){const obj={};students.forEach(s=>obj[s.id]=s);db.ref(`camps/${campId}/students`).set(Object.keys(obj).length?obj:null);}
+  else lsSet(KEY_S,JSON.stringify(students));
+}
+function saveRooms(){
+  if(useFirebase){const obj={};rooms.forEach(r=>obj[r.id]=r);db.ref(`camps/${campId}/rooms`).set(Object.keys(obj).length?obj:null);}
+  else lsSet(KEY_R,JSON.stringify(rooms));
+}
+function saveAssignment(){
+  if(useFirebase)db.ref(`camps/${campId}/assignment`).set(assignment);
+  else lsSet(KEY_A,JSON.stringify(assignment));
+}
+
+function loadAll(){
+  if(useFirebase){
+    db.ref(`camps/${campId}/students`).on('value',snap=>{
+      students=Object.values(snap.val()||{});
+      if(document.getElementById('teacherPanel').style.display!=='none'){renderTeacherTable();}
+      if(assignment)renderResult();
+    });
+    db.ref(`camps/${campId}/rooms`).on('value',snap=>{
+      rooms=Object.values(snap.val()||{});
+      renderRooms();
+      if(assignment)renderResult();
+    });
+    db.ref(`camps/${campId}/assignment`).on('value',snap=>{
+      assignment=snap.val()||null;
+      if(assignment)renderResult();
+    });
+  } else {
+    try{students=JSON.parse(lsGet(KEY_S)||'[]');}catch(e){students=[];}
+    try{rooms=JSON.parse(lsGet(KEY_R)||'[]');}catch(e){rooms=[];}
+    try{assignment=JSON.parse(lsGet(KEY_A)||'null');}catch(e){assignment=null;}
+  }
+}
+loadAll();
+updateLinkPreview();
+
+/* ===== 모드 ===== */
+function setMode(m){
+  document.getElementById('studentView').style.display=m==='student'?'block':'none';
+  document.getElementById('teacherView').style.display=m==='teacher'?'block':'none';
+  document.getElementById('mbStudent').classList.toggle('on',m==='student');
+  document.getElementById('mbTeacher').classList.toggle('on',m==='teacher');
+}
+
+/* ===== 학생 제출 ===== */
+function parseList(s){return s.split(',').map(x=>x.trim()).filter(Boolean);}
+function v(id){return document.getElementById(id).value.trim();}
+function submitStudent(){
+  const n=v('s_name'); if(!n){alert('이름을 입력해 주세요');return;}
+  const stu={id:newId('s'),name:n,gender:v('s_gender'),grade:v('s_grade'),
+    temp:v('s_temp'),lead:v('s_lead'),mis:v('s_mis'),care:false,isNew:v('s_new')==='yes',
+    friends:parseList(v('s_friends')),avoid:parseList(v('s_avoid'))};
+  if(useFirebase){db.ref(`camps/${campId}/students/${stu.id}`).set(stu);}
+  else {students.push(stu); saveStudents();}
+  document.getElementById('studentForm').style.display='none';
+  document.getElementById('studentDone').style.display='block';
+}
+function resetStudentForm(){
+  ['s_name','s_friends','s_avoid'].forEach(i=>document.getElementById(i).value='');
+  ['s_gender','s_grade','s_temp','s_lead','s_mis','s_new'].forEach(i=>document.getElementById(i).selectedIndex=0);
+  document.getElementById('studentForm').style.display='block';
+  document.getElementById('studentDone').style.display='none';
+}
+
+/* ===== 교사 로그인 ===== */
+function teacherLogin(){
+  const pw=v('t_pw'); if(!pw){alert('비밀번호를 입력하세요');return;}
+  const saved=lsGet(PWKEY);
+  if(saved===null){lsSet(PWKEY,pw); alert('이 기기에서의 교사 비밀번호가 설정되었습니다.');}
+  else if(saved!==pw){alert('비밀번호가 틀렸습니다.');return;}
+  document.getElementById('teacherLogin').style.display='none';
+  document.getElementById('teacherPanel').style.display='block';
+  document.getElementById('campInput').value=campId;
+  renderTeacherTable(); renderRooms();
+  if(assignment)renderResult();
+}
+
+/* ===== 캠프 코드 변경 ===== */
+function changeCamp(){
+  const newCode=v('campInput'); if(!newCode){alert('캠프 코드를 입력하세요');return;}
+  if(newCode===campId){alert('이미 같은 코드입니다');return;}
+  if(!confirm(`캠프 코드를 "${newCode}"로 바꾸면, 다른 데이터(다른 코드)로 전환됩니다. 계속할까요?`))return;
+  try{localStorage.setItem('kc_camp',newCode);}catch(e){}
+  location.href=location.pathname+'?camp='+encodeURIComponent(newCode);
+}
+function updateLinkPreview(){
+  const url=location.origin+location.pathname+'?camp='+encodeURIComponent(campId);
+  const el=document.getElementById('linkPreview');
+  if(el)el.textContent='학생용 링크: '+url;
+}
+function copyLink(){
+  const url=location.origin+location.pathname+'?camp='+encodeURIComponent(campId);
+  if(navigator.clipboard){navigator.clipboard.writeText(url).then(()=>alert('링크가 복사되었습니다:\n'+url));}
+  else{prompt('아래 링크를 복사해서 학생들에게 보내세요:',url);}
+}
+
+/* ===== 명단 편집 ===== */
+const G={M:'남',F:'여'}, T={active:'활발',normal:'보통',quiet:'조용'};
+function sel(field,id,opts,cur){
+  return `<select onchange="editStudent('${id}','${field}',this.value)">`+
+    opts.map(o=>`<option value="${o[0]}" ${String(o[0])===String(cur)?'selected':''}>${o[1]}</option>`).join('')+'</select>';
+}
+function renderTeacherTable(){
+  const tb=document.querySelector('#ttable tbody'); if(!tb)return;
+  tb.innerHTML='';
+  document.getElementById('countLbl').textContent=`(${students.length}명)`;
+  students.forEach(s=>{
+    tb.innerHTML+=`<tr>
+      <td><input value="${s.name}" onchange="editStudent('${s.id}','name',this.value)" style="width:80px"></td>
+      <td>${sel('gender',s.id,[['M','남'],['F','여']],s.gender)}</td>
+      <td>${sel('grade',s.id,[['중1','중1'],['중2','중2'],['중3','중3'],['고1','고1'],['고2','고2'],['고3','고3']],s.grade)}</td>
+      <td>${sel('temp',s.id,[['active','활발'],['normal','보통'],['quiet','조용']],s.temp)}</td>
+      <td>${sel('lead',s.id,[['low','낮'],['mid','중'],['high','높']],s.lead)}</td>
+      <td>${sel('mis',s.id,[['low','낮'],['mid','중'],['high','높']],s.mis)}</td>
+      <td>${sel('care',s.id,[[false,'—'],[true,'⚠ 필요']],s.care)}</td>
+      <td>${sel('isNew',s.id,[[false,'—'],[true,'새친구']],s.isNew)}</td>
+      <td><input value="${(s.friends||[]).join(', ')}" onchange="editList('${s.id}','friends',this.value)" style="width:100px"></td>
+      <td><input value="${(s.avoid||[]).join(', ')}" onchange="editList('${s.id}','avoid',this.value)" style="width:90px"></td>
+      <td><span class="x" onclick="delStudent('${s.id}')">✕</span></td></tr>`;
+  });
+}
+function editStudent(id,field,value){
+  const s=students.find(x=>String(x.id)===id); if(!s)return;
+  if(field==='care'||field==='isNew')value=(value==='true');
+  s[field]=value;
+  if(useFirebase)db.ref(`camps/${campId}/students/${id}/${field}`).set(value);
+  else saveStudents();
+}
+function editList(id,field,value){
+  const s=students.find(x=>String(x.id)===id); if(!s)return;
+  s[field]=parseList(value);
+  if(useFirebase)db.ref(`camps/${campId}/students/${id}/${field}`).set(s[field]);
+  else saveStudents();
+}
+function delStudent(id){
+  students=students.filter(s=>String(s.id)!==id);
+  if(useFirebase)db.ref(`camps/${campId}/students/${id}`).remove();
+  else saveStudents();
+  renderTeacherTable();
+}
+function addBlankStudent(){
+  const s={id:newId('s'),name:'새 학생',gender:'M',grade:'중1',temp:'normal',
+    lead:'low',mis:'low',care:false,isNew:false,friends:[],avoid:[]};
+  students.push(s);
+  if(useFirebase)db.ref(`camps/${campId}/students/${s.id}`).set(s);
+  else saveStudents();
+  renderTeacherTable();
+}
+function clearAll(){
+  if(!confirm('학생 명단을 모두 지울까요?'))return;
+  students=[];
+  if(useFirebase)db.ref(`camps/${campId}/students`).remove();
+  else saveStudents();
+  renderTeacherTable();
+}
+
+/* ===== 방 ===== */
+function addRoom(){
+  const n=v('r_name'); if(!n){alert('방 이름을 입력하세요');return;}
+  const r={id:newId('r'),name:n,cap:+v('r_cap')||4,gender:v('r_gender'),near:v('r_near')==='yes'};
+  rooms.push(r);
+  if(useFirebase)db.ref(`camps/${campId}/rooms/${r.id}`).set(r);
+  else saveRooms();
+  document.getElementById('r_name').value=''; renderRooms();
+}
+function delRoom(id){
+  rooms=rooms.filter(r=>String(r.id)!==id);
+  if(useFirebase)db.ref(`camps/${campId}/rooms/${id}`).remove();
+  else saveRooms();
+  renderRooms();
+}
+function renderRooms(){
+  const c=document.getElementById('roomTags'); if(!c)return;
+  c.innerHTML='';
+  rooms.forEach(r=>{c.innerHTML+=`<span class="tag ${r.near?'a':''}">${r.name} · ${G[r.gender]} · ${r.cap}명${r.near?' · 교사방 근처':''} <span class="x" onclick="delRoom('${r.id}')">✕</span></span>`;});
+}
+
+/* ===== 알고리즘 ===== */
+function shuffle(a,rnd){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function mulberry32(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function nameToStudent(name){return students.find(s=>s.name===name);}
+function valid(room){
+  if(room.members.length>room.cap)return false;
+  for(const a of room.members)for(const b of room.members)if(a!==b&&(a.avoid||[]).includes(b.name))return false;
+  return true;
+}
+function tryAssign(group,gRooms,rnd){
+  gRooms.forEach(r=>r.members=[]);
+  const ordered=[...gRooms.filter(r=>r.near),...gRooms.filter(r=>!r.near)];
+  const care=group.filter(s=>s.care), rest=shuffle(group.filter(s=>!s.care),rnd);
+  for(const s of care){const r=ordered.find(r=>r.members.length<r.cap);if(!r)return null;r.members.push(s);}
+  for(const s of rest){
+    const cands=gRooms.filter(r=>r.members.length<r.cap&&!r.members.some(m=>(m.avoid||[]).includes(s.name)||(s.avoid||[]).includes(m.name)));
+    if(!cands.length)return null;
+    cands.sort((a,b)=>(a.members.length-b.members.length)+(rnd()-0.5)*1.5);
+    cands[0].members.push(s);
+  }
+  if(!gRooms.every(valid))return null;
+  return gRooms.map(r=>({...r,members:r.members.slice()}));
+}
+function std(arr){if(arr.length<2)return 0;const m=arr.reduce((a,b)=>a+b,0)/arr.length;return Math.sqrt(arr.reduce((a,b)=>a+(b-m)**2,0)/arr.length);}
+function scoreRooms(allRooms){
+  let sc=0;const detail={friend:0,newcare:0,mischief:0,leader:0,grade:0,balance:0,care:0};
+  const tv={active:2,normal:1,quiet:0};
+  allRooms.forEach(r=>{
+    if(!r.members.length)return;
+    r.members.forEach(s=>{const f=(s.friends||[]).filter(fn=>r.members.some(m=>m.name===fn)).length;if(f===1)detail.friend+=8;else if(f>=2)detail.friend+=4;});
+    r.members.forEach(s=>{if(s.isNew&&r.members.some(m=>m!==s&&((s.friends||[]).includes(m.name)||m.lead!=='low')))detail.newcare+=6;});
+    const mis=r.members.filter(s=>s.mis==='high').length;if(mis>=2)detail.mischief-=(mis-1)*7;
+    if(r.members.some(s=>s.lead==='high'))detail.leader+=6;else detail.leader-=3;
+    if(r.members.filter(s=>s.lead==='high').length>=3)detail.leader-=5;
+    const gr={};r.members.forEach(s=>gr[s.grade]=(gr[s.grade]||0)+1);
+    if(Math.max(...Object.values(gr))>r.members.length*0.7&&r.members.length>=3)detail.grade-=6;else detail.grade+=3;
+    detail.balance+=Math.max(0,6-std(r.members.map(s=>tv[s.temp]))*4);
+    r.members.forEach(s=>{if(s.care&&r.near)detail.care+=8;else if(s.care&&!r.near)detail.care-=4;});
+  });
+  for(const k in detail)sc+=detail[k];
+  return {sc:Math.round(sc),detail};
+}
+function run(){
+  if(students.length<2||!rooms.length){alert('학생과 방을 먼저 등록하세요');return;}
+  const genders=['M','F'];let finalRooms=[],feasible=true;
+  for(const g of genders){
+    const group=students.filter(s=>s.gender===g), gRooms=rooms.filter(r=>r.gender===g);
+    if(!group.length)continue;
+    if(!gRooms.length||group.length>gRooms.reduce((a,r)=>a+r.cap,0)){feasible=false;break;}
+    let best=null,bestS=-1e9;
+    for(let i=0;i<800;i++){
+      const rnd=mulberry32(i*7+13);
+      const att=tryAssign(group.map(s=>({...s})),gRooms.map(r=>({...r})),rnd);
+      if(!att)continue;
+      const {sc}=scoreRooms(att);
+      if(sc>bestS){bestS=sc;best=att;}
+    }
+    if(!best){feasible=false;break;}
+    finalRooms=finalRooms.concat(best);
+  }
+  if(!feasible){document.getElementById('result').innerHTML='<div class="card"><div class="empty">⚠ 필수조건을 만족하는 배정안을 찾지 못했습니다.</div></div>';return;}
+  assignment={};
+  finalRooms.forEach(r=>{assignment[r.id]=r.members.map(m=>m.id);});
+  originalAssignment=JSON.parse(JSON.stringify(assignment));
+  saveAssignment();
+  renderResult();
+}
+
+/* ===== 결과 + 편집 ===== */
+function getResult(){
+  if(!assignment)return null;
+  return rooms.map(r=>({
+    ...r,
+    members:(assignment[r.id]||[]).map(id=>students.find(s=>String(s.id)===String(id))).filter(Boolean)
+  }));
+}
+function violationsIfMoved(student,targetRoom){
+  const v=[];
+  if(student.gender!==targetRoom.gender)v.push('성별 다름');
+  if(targetRoom.members.length>=targetRoom.cap)v.push('정원 초과');
+  if(targetRoom.members.some(m=>(m.avoid||[]).includes(student.name)||(student.avoid||[]).includes(m.name)))v.push('피할친구 같은 방');
+  return v;
+}
+function violationsInRoom(room){
+  const set=new Set();
+  if(room.members.length>room.cap)set.add('정원초과');
+  room.members.forEach(s=>{
+    if(s.gender!==room.gender)set.add('성별충돌');
+    if(room.members.some(m=>m!==s&&((s.avoid||[]).includes(m.name)||(m.avoid||[]).includes(s.name))))set.add('피할친구');
+  });
+  return [...set];
+}
+function memberViolation(s,room){
+  const r=[];
+  if(s.gender!==room.gender)r.push('성별');
+  if(room.members.some(m=>m!==s&&((s.avoid||[]).includes(m.name)||(m.avoid||[]).includes(s.name))))r.push('피할친구');
+  return r;
+}
+
+let moveCtx=null;
+function openMove(sid){
+  const res=getResult();if(!res)return;
+  let fromRoom=null,student=null;
+  for(const r of res){const m=r.members.find(x=>String(x.id)===String(sid));if(m){fromRoom=r;student=m;break;}}
+  if(!student)return;
+  moveCtx={sid,fromRoomId:fromRoom.id};
+  document.getElementById('moveTitle').textContent=`${student.name} 학생을 어디로 옮길까요?`;
+  document.getElementById('moveWho').textContent=`현재: ${fromRoom.name} · ${G[student.gender]} · ${student.grade}`;
+  const opts=document.getElementById('moveOpts'); opts.innerHTML='';
+  res.forEach(r=>{
+    const isCur=String(r.id)===String(fromRoom.id);
+    const simRoom={...r,members:r.members.filter(m=>String(m.id)!==String(student.id))};
+    const viol=isCur?[]:violationsIfMoved(student,simRoom);
+    opts.innerHTML+=`<div class="roomopt ${isCur?'cur':''}" ${isCur?'':`onclick="doMove('${r.id}')"`}>
+      <span>${r.name} <span class="muted">· ${G[r.gender]} · ${r.members.length}/${r.cap}${r.near?' · 교사방근처':''}</span></span>
+      <span class="badge">${isCur?'(현재 방)':viol.length?'⚠ '+viol.join(', '):'✓ 이동 가능'}</span></div>`;
+  });
+  document.getElementById('moveModal').classList.add('on');
+}
+function closeMove(){document.getElementById('moveModal').classList.remove('on'); moveCtx=null;}
+function doMove(toRoomId){
+  if(!moveCtx||!assignment)return;
+  const {sid,fromRoomId}=moveCtx;
+  assignment[fromRoomId]=(assignment[fromRoomId]||[]).filter(id=>String(id)!==String(sid));
+  assignment[toRoomId]=(assignment[toRoomId]||[]);
+  assignment[toRoomId].push(sid);
+  saveAssignment();
+  closeMove();
+  if(!useFirebase)renderResult();
+}
+function restoreOriginal(){
+  if(!originalAssignment)return;
+  assignment=JSON.parse(JSON.stringify(originalAssignment));
+  saveAssignment();
+  if(!useFirebase)renderResult();
+}
+function rerun(){run();}
+
+function renderResult(){
+  const allRooms=getResult();if(!allRooms){document.getElementById('result').innerHTML='';return;}
+  const tv={active:2,normal:1,quiet:0};
+  const {sc:score,detail}=scoreRooms(allRooms);
+  let roster='',warns='',memos='';
+  allRooms.forEach(r=>{
+    const rViol=violationsInRoom(r);
+    const hi=r.members.filter(s=>s.lead==='high').map(s=>s.name);
+    const mis=r.members.filter(s=>s.mis==='high').map(s=>s.name);
+    const care=r.members.filter(s=>s.care).map(s=>s.name);
+    const news=r.members.filter(s=>s.isNew).map(s=>s.name);
+    const avgT=r.members.length?r.members.reduce((a,s)=>a+tv[s.temp],0)/r.members.length:0;
+    const feats=[];
+    if(hi.length)feats.push(`<span class="tag g">리더 ${hi.join(',')}</span>`);
+    if(r.members.length){
+      if(avgT>1.4)feats.push('<span class="tag">활발</span>');
+      else if(avgT<0.6)feats.push('<span class="tag s">차분</span>');
+      else feats.push('<span class="tag">균형</span>');
+    }
+    if(care.length)feats.push('<span class="tag w">특별관리</span>');
+    if(news.length)feats.push(`<span class="tag a">새친구 ${news.length}</span>`);
+    rViol.forEach(v=>feats.push(`<span class="tag w">⚠ ${v}</span>`));
+    roster+=`<div class="room ${r.near?'near':''} ${rViol.length?'over':''}">
+      <h3>${r.name} ${r.near?'🛏️':''}</h3>
+      <div class="cap">${G[r.gender]}자방 · ${r.members.length}/${r.cap}명${r.near?' · 교사방 근처':''}</div>
+      <div style="margin-top:6px">${feats.join('')||'<span class="muted">빈 방</span>'}</div>
+      <ul>${r.members.map(s=>{
+        const mv=memberViolation(s,r);
+        return `<li class="${mv.length?'violate':''}" onclick="openMove('${s.id}')" title="클릭하면 다른 방으로 옮길 수 있어요">
+          <span>${s.name} <span class="muted">${s.grade}</span>${mv.length?` <span class="tag w">${mv.join(',')}</span>`:''}</span>
+          <span class="muted">${T[s.temp]}${s.lead==='high'?' ⭐':''}${s.mis==='high'?' 🎭':''}${s.care?' ⚠':''}</span></li>`;
+      }).join('')}</ul></div>`;
+    r.members.forEach(s=>(s.friends||[]).forEach(fn=>{const f=nameToStudent(fn);
+      if(f&&f.gender===s.gender&&!r.members.some(m=>m.name===fn)){
+        const otherRoom=allRooms.find(rr=>rr.members.some(m=>m.name===fn));
+        warns+=`<div class="warnbox">😟 <b>${s.name}</b> 의 친구 <b>${fn}</b> 가 다른 방(${otherRoom?otherRoom.name:'?'})에 배정됨</div>`;
+      }}));
+    if(mis.length>=2)warns+=`<div class="warnbox">🎭 <b>${r.name}</b>: 장난기 높은 학생 ${mis.length}명(${mis.join(',')}) — 취침 지도 주의</div>`;
+    let m=[];
+    if(care.length)m.push(`특별관리 ${care.join(', ')} — 야간 순회 우선 확인`);
+    if(news.length)m.push(`새친구 ${news.join(', ')} — 첫날 적응 체크`);
+    if(r.members.length&&!hi.length)m.push('방장 역할 지정 필요(리더 부재)');
+    if(m.length)memos+=`<div class="memo"><b>${r.name}</b> · ${m.join(' / ')}</div>`;
+  });
+
+  const labels={friend:'친한 친구 동거',newcare:'새친구 케어',mischief:'장난기 분산',leader:'리더십 분산',grade:'학년 분산',balance:'성향 균형',care:'특별관리 배치'};
+  let metrics='';for(const k in labels){const val=detail[k]||0,pct=Math.max(0,Math.min(100,50+val));
+    metrics+=`<div class="metric"><div class="lab"><span>${labels[k]}</span><span>${val>=0?'+':''}${Math.round(val)}</span></div><div class="bar"><i style="width:${pct}%"></i></div></div>`;}
+  const reasons=[];
+  if((detail.friend||0)>0)reasons.push('친한 친구들이 같은 방에 배치되어 정서적 안정감이 높습니다.');
+  if((detail.leader||0)>0)reasons.push('각 방에 리더십 있는 학생이 분산되어 방 운영이 원활합니다.');
+  if((detail.mischief||0)>=0)reasons.push('장난기 많은 학생이 한 방에 몰리지 않아 야간 관리 부담이 적습니다.');
+  if((detail.balance||0)>0)reasons.push('활발/조용 성향이 방마다 균형 있게 섞였습니다.');
+  if((detail.care||0)>0)reasons.push('특별관리 학생이 교사방 근처에 우선 배치되었습니다.');
+  if((detail.grade||0)>0)reasons.push('학년이 한 방에 편중되지 않게 분산되었습니다.');
+
+  document.getElementById('result').innerHTML=`
+  <div class="editbar">
+    <span class="lab">✏️ <b>학생 이름을 클릭</b>하면 다른 방으로 옮길 수 있어요. 점수는 실시간 다시 계산됩니다.</span>
+    <button class="btn2" onclick="restoreOriginal()">↺ 추천 원본으로 복원</button>
+    <button class="btn2" onclick="rerun()">🎯 다시 추천 받기</button>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>④ 방별 학생 명단 · 방 특징</h2><div class="roster">${roster}</div></div>
+    <div class="card"><h2>배정 점수</h2><div class="score">${score}<span style="font-size:16px;color:var(--muted)"> 점</span></div>
+      ${metrics}<h2 style="margin-top:18px">왜 이 배정이 좋은가</h2>${reasons.map(r=>`<div class="memo">✔ ${r}</div>`).join('')||'<div class="muted">—</div>'}</div>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>⑤ 주의해야 할 학생 관계</h2>${warns||'<div class="muted">특이 주의사항 없음 — 안정적인 배정입니다.</div>'}</div>
+    <div class="card"><h2>⑥ 교사용 관리 메모</h2>${memos||'<div class="muted">추가 메모 없음</div>'}</div>
+  </div>`;
+}
+
+/* ===== 예시 ===== */
+function loadSample(){
+  rooms=[
+    {id:newId('r'),name:'1호실',cap:4,gender:'M',near:true},
+    {id:newId('r'),name:'2호실',cap:4,gender:'M',near:false},
+    {id:newId('r'),name:'3호실',cap:4,gender:'F',near:true},
+    {id:newId('r'),name:'4호실',cap:4,gender:'F',near:false}];
+  const S=(name,gender,grade,temp,lead,mis,care,isNew,friends,avoid)=>({id:newId('s'),name,gender,grade,temp,lead,mis,care,isNew,friends:friends||[],avoid:avoid||[]});
+  students=[
+    S('김민준','M','고1','active','high','mid',false,false,['이서준'],[]),
+    S('이서준','M','고1','normal','mid','high',false,false,['김민준'],[]),
+    S('박도윤','M','중3','quiet','low','low',true,true,[],[]),
+    S('정시우','M','고2','active','mid','high',false,false,[],['이서준']),
+    S('최예준','M','중2','normal','high','low',false,false,[],[]),
+    S('강하준','M','고1','quiet','low','mid',false,true,[],[]),
+    S('윤주원','M','중3','active','mid','low',false,false,[],[]),
+    S('임지호','M','고2','normal','low','high',false,false,[],[]),
+    S('한서윤','F','고1','active','high','mid',false,false,['오지우'],[]),
+    S('오지우','F','고1','normal','mid','low',false,false,['한서윤'],[]),
+    S('서하은','F','중3','quiet','low','low',true,true,[],[]),
+    S('신수아','F','고2','active','mid','high',false,false,[],['서하은']),
+    S('조유나','F','중2','normal','high','low',false,false,[],[]),
+    S('황지안','F','고1','quiet','low','mid',false,true,[],[]),
+    S('문채원','F','중3','active','mid','low',false,false,[],[]),
+    S('배소율','F','고2','normal','low','mid',false,false,[],[])];
+  saveStudents();saveRooms();renderTeacherTable();renderRooms();
+}
+</script>
+</body>
+</html>
