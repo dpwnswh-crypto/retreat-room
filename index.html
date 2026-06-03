@@ -124,9 +124,10 @@
         <div><label>이름</label><input id="s_name" placeholder="이름을 적어주세요"></div>
         <div><label>성별</label><select id="s_gender"><option value="M">남</option><option value="F">여</option></select></div>
       </div>
-      <div class="row">
+      <div class="row3">
         <div><label>학년</label><select id="s_grade"><option>중1</option><option>중2</option><option>중3</option><option>고1</option><option>고2</option><option>고3</option></select></div>
-        <div><label>이번이 처음 온 거예요? (새친구)</label><select id="s_new"><option value="no">아니요</option><option value="yes">네, 처음이에요</option></select></div>
+        <div><label>새친구인가요?</label><select id="s_new"><option value="no">아니요</option><option value="yes">네, 처음</option></select></div>
+        <div><label>언제부터 오나요?</label><select id="s_arrive"><option value="1">1일차부터</option><option value="2">2일차부터</option><option value="3">3일차부터</option></select></div>
       </div>
       <label>나는 어떤 편인가요?</label>
       <div class="row3">
@@ -180,7 +181,7 @@
         <p class="muted">학생이 입력한 내용입니다. 어떤 칸이든 직접 고칠 수 있습니다.</p>
         <div style="overflow-x:auto">
           <table id="ttable"><thead><tr>
-            <th>이름</th><th>성별</th><th>학년</th><th>성향</th><th>리더십</th><th>장난기</th>
+            <th>이름</th><th>성별</th><th>학년</th><th>도착일</th><th>성향</th><th>리더십</th><th>장난기</th>
             <th>특별관리</th><th>새친구</th><th>친한친구</th><th>피할친구</th><th></th>
           </tr></thead><tbody></tbody></table>
         </div>
@@ -337,6 +338,7 @@ function submitStudent(){
   const n=v('s_name'); if(!n){alert('이름을 입력해 주세요');return;}
   const stu={id:newId('s'),name:n,gender:v('s_gender'),grade:v('s_grade'),
     temp:v('s_temp'),lead:v('s_lead'),mis:v('s_mis'),care:false,isNew:v('s_new')==='yes',
+    arriveDay:parseInt(v('s_arrive'))||1,
     friends:parseList(v('s_friends')),avoid:parseList(v('s_avoid'))};
   if(useFirebase){db.ref(`camps/${campId}/students/${stu.id}`).set(stu);}
   else {students.push(stu); saveStudents();}
@@ -345,7 +347,7 @@ function submitStudent(){
 }
 function resetStudentForm(){
   ['s_name','s_friends','s_avoid'].forEach(i=>document.getElementById(i).value='');
-  ['s_gender','s_grade','s_temp','s_lead','s_mis','s_new'].forEach(i=>document.getElementById(i).selectedIndex=0);
+  ['s_gender','s_grade','s_temp','s_lead','s_mis','s_new','s_arrive'].forEach(i=>document.getElementById(i).selectedIndex=0);
   document.getElementById('studentForm').style.display='block';
   document.getElementById('studentDone').style.display='none';
 }
@@ -397,6 +399,7 @@ function renderTeacherTable(){
       <td><input value="${s.name}" onchange="editStudent('${s.id}','name',this.value)" style="width:80px"></td>
       <td>${sel('gender',s.id,[['M','남'],['F','여']],s.gender)}</td>
       <td>${sel('grade',s.id,[['중1','중1'],['중2','중2'],['중3','중3'],['고1','고1'],['고2','고2'],['고3','고3']],s.grade)}</td>
+      <td>${sel('arriveDay',s.id,[[1,'1일차'],[2,'2일차'],[3,'3일차']],s.arriveDay||1)}</td>
       <td>${sel('temp',s.id,[['active','활발'],['normal','보통'],['quiet','조용']],s.temp)}</td>
       <td>${sel('lead',s.id,[['low','낮'],['mid','중'],['high','높']],s.lead)}</td>
       <td>${sel('mis',s.id,[['low','낮'],['mid','중'],['high','높']],s.mis)}</td>
@@ -410,6 +413,7 @@ function renderTeacherTable(){
 function editStudent(id,field,value){
   const s=students.find(x=>String(x.id)===id); if(!s)return;
   if(field==='care'||field==='isNew')value=(value==='true');
+  if(field==='arriveDay')value=parseInt(value);
   s[field]=value;
   if(useFirebase)db.ref(`camps/${campId}/students/${id}/${field}`).set(value);
   else saveStudents();
@@ -428,7 +432,7 @@ function delStudent(id){
 }
 function addBlankStudent(){
   const s={id:newId('s'),name:'새 학생',gender:'M',grade:'중1',temp:'normal',
-    lead:'low',mis:'low',care:false,isNew:false,friends:[],avoid:[]};
+    lead:'low',mis:'low',care:false,isNew:false,arriveDay:1,friends:[],avoid:[]};
   students.push(s);
   if(useFirebase)db.ref(`camps/${campId}/students/${s.id}`).set(s);
   else saveStudents();
@@ -487,8 +491,36 @@ function tryAssign(group,gRooms,rnd){
   return gRooms.map(r=>({...r,members:r.members.slice()}));
 }
 function std(arr){if(arr.length<2)return 0;const m=arr.reduce((a,b)=>a+b,0)/arr.length;return Math.sqrt(arr.reduce((a,b)=>a+(b-m)**2,0)/arr.length);}
+/* ===== 실패 진단 ===== */
+function diagnoseFeasibility(){
+  const issues=[];
+  const gName={M:'남학생',F:'여학생'},rName={M:'남자방',F:'여자방'};
+  ['M','F'].forEach(g=>{
+    const group=students.filter(s=>s.gender===g);
+    const gRooms=rooms.filter(r=>r.gender===g);
+    if(!group.length)return;
+    if(!gRooms.length){issues.push(`${gName[g]} ${group.length}명이 등록되어 있는데 ${rName[g]}이 하나도 없습니다.`);return;}
+    const totalCap=gRooms.reduce((a,r)=>a+r.cap,0);
+    if(group.length>totalCap)issues.push(`${gName[g]} ${group.length}명인데 ${rName[g]} 전체 정원은 ${totalCap}명입니다 (${group.length-totalCap}명 초과).`);
+    const careCount=group.filter(s=>s.care).length;
+    const nearCap=gRooms.filter(r=>r.near).reduce((a,r)=>a+r.cap,0);
+    if(careCount>nearCap)issues.push(`${gName[g]} 특별관리 학생 ${careCount}명인데 교사방 근처 ${rName[g]} 정원 합계는 ${nearCap}명뿐입니다.`);
+  });
+  students.forEach(s=>{
+    (s.avoid||[]).forEach(name=>{
+      if((s.friends||[]).includes(name))issues.push(`<b>${s.name}</b>: "${name}"이(가) 친한친구와 피할친구 양쪽에 들어있습니다. (오타 확인)`);
+    });
+  });
+  students.forEach(s=>{
+    const sameG=students.filter(o=>o.gender===s.gender&&String(o.id)!==String(s.id));
+    const avoidActual=(s.avoid||[]).filter(n=>sameG.find(o=>o.name===n)).length;
+    if(sameG.length&&avoidActual>=sameG.length-2)issues.push(`<b>${s.name}</b>: 같은 성별 ${sameG.length}명 중 ${avoidActual}명을 피해야 합니다. 너무 많아 배정이 거의 불가능합니다.`);
+  });
+  return issues;
+}
+
 function scoreRooms(allRooms){
-  let sc=0;const detail={friend:0,newcare:0,mischief:0,leader:0,grade:0,balance:0,care:0};
+  let sc=0;const detail={friend:0,newcare:0,mischief:0,leader:0,grade:0,balance:0,care:0,arrival:0};
   const tv={active:2,normal:1,quiet:0};
   allRooms.forEach(r=>{
     if(!r.members.length)return;
@@ -501,6 +533,12 @@ function scoreRooms(allRooms){
     if(Math.max(...Object.values(gr))>r.members.length*0.7&&r.members.length>=3)detail.grade-=6;else detail.grade+=3;
     detail.balance+=Math.max(0,6-std(r.members.map(s=>tv[s.temp]))*4);
     r.members.forEach(s=>{if(s.care&&r.near)detail.care+=8;else if(s.care&&!r.near)detail.care-=4;});
+    const day1Count=r.members.filter(s=>(s.arriveDay||1)===1).length;
+    const lateCount=r.members.filter(s=>(s.arriveDay||1)>1).length;
+    if(day1Count===0)detail.arrival-=15;
+    else if(lateCount>=3)detail.arrival-=6;
+    else if(lateCount>0)detail.arrival+=4;
+    else detail.arrival+=2;
   });
   for(const k in detail)sc+=detail[k];
   return {sc:Math.round(sc),detail};
@@ -523,7 +561,24 @@ function run(){
     if(!best){feasible=false;break;}
     finalRooms=finalRooms.concat(best);
   }
-  if(!feasible){document.getElementById('result').innerHTML='<div class="card"><div class="empty">⚠ 필수조건을 만족하는 배정안을 찾지 못했습니다.</div></div>';return;}
+  if(!feasible){
+    const issues=diagnoseFeasibility();
+    document.getElementById('result').innerHTML=`<div class="card">
+      <h2>⚠ 필수조건을 만족하는 배정안을 만들지 못했습니다</h2>
+      <p class="muted">아래 원인을 해결한 뒤 다시 시도하세요.</p>
+      ${issues.length?issues.map(i=>`<div class="warnbox">🔧 ${i}</div>`).join(''):'<div class="warnbox">자동으로 짚어낼 수 있는 원인은 없습니다. 친한친구·피할친구 관계가 복잡하게 얽혀있을 가능성이 큽니다.</div>'}
+      <details style="margin-top:14px"><summary>일반적인 실패 원인 5가지</summary>
+        <ol style="font-size:13px;line-height:1.9;margin-top:8px">
+          <li><b>인원 초과</b> — 학생 수 > 방 정원 합계</li>
+          <li><b>한쪽 성별 방 없음</b> — 여학생만 있고 여자방을 안 만든 경우</li>
+          <li><b>특별관리 학생이 너무 많음</b> — 교사방 근처 방 정원보다 많음</li>
+          <li><b>피할친구 관계가 너무 얽힘</b> — A↔B, C↔D, E↔F가 다 서로 피하는데 방이 2개뿐 등</li>
+          <li><b>이름 오타</b> — 친한친구·피할친구에 같은 이름이 들어감, 또는 실제 학생 이름과 다른 표기</li>
+        </ol>
+      </details>
+    </div>`;
+    return;
+  }
   assignment={};
   finalRooms.forEach(r=>{assignment[r.id]=r.members.map(m=>m.id);});
   originalAssignment=JSON.parse(JSON.stringify(assignment));
@@ -622,6 +677,10 @@ function renderResult(){
     }
     if(care.length)feats.push('<span class="tag w">특별관리</span>');
     if(news.length)feats.push(`<span class="tag a">새친구 ${news.length}</span>`);
+    const lateMembers=r.members.filter(s=>(s.arriveDay||1)>1);
+    if(lateMembers.length)feats.push(`<span class="tag s">🕐 늦합류 ${lateMembers.length}</span>`);
+    const day1Members=r.members.filter(s=>(s.arriveDay||1)===1);
+    if(r.members.length&&day1Members.length===0)feats.push('<span class="tag w">⚠ 1일차 공실</span>');
     rViol.forEach(v=>feats.push(`<span class="tag w">⚠ ${v}</span>`));
     roster+=`<div class="room ${r.near?'near':''} ${rViol.length?'over':''}">
       <h3>${r.name} ${r.near?'🛏️':''}</h3>
@@ -630,7 +689,7 @@ function renderResult(){
       <ul>${r.members.map(s=>{
         const mv=memberViolation(s,r);
         return `<li class="${mv.length?'violate':''}" onclick="openMove('${s.id}')" title="클릭하면 다른 방으로 옮길 수 있어요">
-          <span>${s.name} <span class="muted">${s.grade}</span>${mv.length?` <span class="tag w">${mv.join(',')}</span>`:''}</span>
+          <span>${s.name} <span class="muted">${s.grade}</span>${(s.arriveDay||1)>1?` <span class="tag a">🕐${s.arriveDay}일차</span>`:''}${mv.length?` <span class="tag w">${mv.join(',')}</span>`:''}</span>
           <span class="muted">${T[s.temp]}${s.lead==='high'?' ⭐':''}${s.mis==='high'?' 🎭':''}${s.care?' ⚠':''}</span></li>`;
       }).join('')}</ul></div>`;
     r.members.forEach(s=>(s.friends||[]).forEach(fn=>{const f=nameToStudent(fn);
@@ -643,10 +702,18 @@ function renderResult(){
     if(care.length)m.push(`특별관리 ${care.join(', ')} — 야간 순회 우선 확인`);
     if(news.length)m.push(`새친구 ${news.join(', ')} — 첫날 적응 체크`);
     if(r.members.length&&!hi.length)m.push('방장 역할 지정 필요(리더 부재)');
+    const lateList=r.members.filter(s=>(s.arriveDay||1)>1);
+    if(lateList.length){
+      const grp={};lateList.forEach(s=>{const k=s.arriveDay+'일차';if(!grp[k])grp[k]=[];grp[k].push(s.name);});
+      const msg=Object.entries(grp).map(([k,n])=>`${k} ${n.join(', ')}`).join(' / ');
+      m.push(`늦합류: ${msg} — 도착 시 방·짐 자리 안내 필요`);
+    }
+    const d1=r.members.filter(s=>(s.arriveDay||1)===1);
+    if(r.members.length&&d1.length===0)m.push('⚠ 1일차에 이 방이 비어있음 — 시설/짐 안내 무인 상태 주의');
     if(m.length)memos+=`<div class="memo"><b>${r.name}</b> · ${m.join(' / ')}</div>`;
   });
 
-  const labels={friend:'친한 친구 동거',newcare:'새친구 케어',mischief:'장난기 분산',leader:'리더십 분산',grade:'학년 분산',balance:'성향 균형',care:'특별관리 배치'};
+  const labels={friend:'친한 친구 동거',newcare:'새친구 케어',mischief:'장난기 분산',leader:'리더십 분산',grade:'학년 분산',balance:'성향 균형',care:'특별관리 배치',arrival:'도착일 균형'};
   let metrics='';for(const k in labels){const val=detail[k]||0,pct=Math.max(0,Math.min(100,50+val));
     metrics+=`<div class="metric"><div class="lab"><span>${labels[k]}</span><span>${val>=0?'+':''}${Math.round(val)}</span></div><div class="bar"><i style="width:${pct}%"></i></div></div>`;}
   const reasons=[];
@@ -656,6 +723,7 @@ function renderResult(){
   if((detail.balance||0)>0)reasons.push('활발/조용 성향이 방마다 균형 있게 섞였습니다.');
   if((detail.care||0)>0)reasons.push('특별관리 학생이 교사방 근처에 우선 배치되었습니다.');
   if((detail.grade||0)>0)reasons.push('학년이 한 방에 편중되지 않게 분산되었습니다.');
+  if((detail.arrival||0)>0)reasons.push('각 방에 1일차 멤버가 있고 늦합류자도 잘 섞여 도착 시 안내가 자연스럽습니다.');
 
   document.getElementById('result').innerHTML=`
   <div class="editbar">
@@ -681,24 +749,24 @@ function loadSample(){
     {id:newId('r'),name:'2호실',cap:4,gender:'M',near:false},
     {id:newId('r'),name:'3호실',cap:4,gender:'F',near:true},
     {id:newId('r'),name:'4호실',cap:4,gender:'F',near:false}];
-  const S=(name,gender,grade,temp,lead,mis,care,isNew,friends,avoid)=>({id:newId('s'),name,gender,grade,temp,lead,mis,care,isNew,friends:friends||[],avoid:avoid||[]});
+  const S=(name,gender,grade,temp,lead,mis,care,isNew,arriveDay,friends,avoid)=>({id:newId('s'),name,gender,grade,temp,lead,mis,care,isNew,arriveDay:arriveDay||1,friends:friends||[],avoid:avoid||[]});
   students=[
-    S('김민준','M','고1','active','high','mid',false,false,['이서준'],[]),
-    S('이서준','M','고1','normal','mid','high',false,false,['김민준'],[]),
-    S('박도윤','M','중3','quiet','low','low',true,true,[],[]),
-    S('정시우','M','고2','active','mid','high',false,false,[],['이서준']),
-    S('최예준','M','중2','normal','high','low',false,false,[],[]),
-    S('강하준','M','고1','quiet','low','mid',false,true,[],[]),
-    S('윤주원','M','중3','active','mid','low',false,false,[],[]),
-    S('임지호','M','고2','normal','low','high',false,false,[],[]),
-    S('한서윤','F','고1','active','high','mid',false,false,['오지우'],[]),
-    S('오지우','F','고1','normal','mid','low',false,false,['한서윤'],[]),
-    S('서하은','F','중3','quiet','low','low',true,true,[],[]),
-    S('신수아','F','고2','active','mid','high',false,false,[],['서하은']),
-    S('조유나','F','중2','normal','high','low',false,false,[],[]),
-    S('황지안','F','고1','quiet','low','mid',false,true,[],[]),
-    S('문채원','F','중3','active','mid','low',false,false,[],[]),
-    S('배소율','F','고2','normal','low','mid',false,false,[],[])];
+    S('김민준','M','고1','active','high','mid',false,false,1,['이서준'],[]),
+    S('이서준','M','고1','normal','mid','high',false,false,1,['김민준'],[]),
+    S('박도윤','M','중3','quiet','low','low',true,true,1,[],[]),
+    S('정시우','M','고2','active','mid','high',false,false,1,[],['이서준']),
+    S('최예준','M','중2','normal','high','low',false,false,1,[],[]),
+    S('강하준','M','고1','quiet','low','mid',false,true,2,[],[]),
+    S('윤주원','M','중3','active','mid','low',false,false,1,[],[]),
+    S('임지호','M','고2','normal','low','high',false,false,2,[],[]),
+    S('한서윤','F','고1','active','high','mid',false,false,1,['오지우'],[]),
+    S('오지우','F','고1','normal','mid','low',false,false,1,['한서윤'],[]),
+    S('서하은','F','중3','quiet','low','low',true,true,1,[],[]),
+    S('신수아','F','고2','active','mid','high',false,false,1,[],['서하은']),
+    S('조유나','F','중2','normal','high','low',false,false,1,[],[]),
+    S('황지안','F','고1','quiet','low','mid',false,true,3,[],[]),
+    S('문채원','F','중3','active','mid','low',false,false,1,[],[]),
+    S('배소율','F','고2','normal','low','mid',false,false,1,[],[])];
   saveStudents();saveRooms();renderTeacherTable();renderRooms();
 }
 </script>
